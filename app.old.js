@@ -27,6 +27,7 @@ const elements = {
   pgnInput: document.getElementById("pgnInput"),
   analyzeButton: document.getElementById("analyzeButton"),
   demoButton: document.getElementById("demoButton"),
+  clearDraftButton: document.getElementById("clearDraftButton"),
   status: document.getElementById("status"),
   results: document.getElementById("results"),
   performanceScore: document.getElementById("performanceScore"),
@@ -61,6 +62,8 @@ elements.demoButton.addEventListener("click", () => {
   saveInputDraft();
   setStatus("Demo game loaded. Press Analyze Game when you're ready.");
 });
+
+elements.clearDraftButton.addEventListener("click", clearInputDraft);
 
 elements.analyzeButton.addEventListener("click", async () => {
   setBusy(true);
@@ -203,6 +206,25 @@ function saveInputDraft() {
   } catch (error) {
     console.warn("Could not save input draft.", error);
   }
+}
+
+function clearInputDraft() {
+  elements.gameUrl.value = "";
+  elements.playerName.value = "";
+  elements.playerColor.value = "auto";
+  elements.engineDepth.value = "12";
+  elements.pgnInput.value = "";
+
+  const storage = getLocalStorage();
+  if (storage) {
+    try {
+      storage.removeItem(inputDraftStorageKey);
+    } catch (error) {
+      console.warn("Could not clear saved input draft.", error);
+    }
+  }
+
+  setStatus("Saved game input cleared.");
 }
 
 function getLocalStorage() {
@@ -1079,6 +1101,12 @@ function formatEval(value) {
 function setBusy(isBusy) {
   elements.analyzeButton.disabled = isBusy;
   elements.demoButton.disabled = isBusy;
+  elements.clearDraftButton.disabled = isBusy;
+  elements.gameUrl.disabled = isBusy;
+  elements.playerName.disabled = isBusy;
+  elements.playerColor.disabled = isBusy;
+  elements.engineDepth.disabled = isBusy;
+  elements.pgnInput.disabled = isBusy;
 }
 
 function setStatus(message) {

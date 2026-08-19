@@ -1,0 +1,14 @@
+{
+  "name": "chess-analyzer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Turn one Chess.com game into a practical training plan with move-by-move review and improvement recommendations.",
+  "scripts": {
+    "serve": "node server.js",
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
+
