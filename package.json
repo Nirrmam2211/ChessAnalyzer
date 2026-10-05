@@ -4,7 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "setup:engine": "node scripts/setup-engine.mjs",
+    "predev": "node scripts/setup-engine.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/setup-engine.mjs",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
@@ -16,7 +19,8 @@
     "lucide-react": "^1.32.0",
     "react": "^19.2.8",
     "react-chessboard": "^5.12.1",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "stockfish": "^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",
@@ -24,5 +28,17 @@
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
     "vite": "^8.2.0"
-  }
+  },
+  "description": "An Chess Analyzer which will Help you understand what You Missed And also How you Can Improve",
+  "main": "server.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nirrmam2211/ChessAnalyzer.git"
+  },
+  "author": "Nirrmam Shah",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Nirrmam2211/ChessAnalyzer/issues"
+  },
+  "homepage": "https://github.com/Nirrmam2211/ChessAnalyzer#readme"
 }

@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Stockfish engine binaries (94.5 MB). They come from the stockfish npm package
+# and are copied here by "npm run setup:engine", so they stay out of git history.
+public/stockfish.js
+public/stockfish.wasm
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
