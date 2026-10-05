@@ -189,8 +189,13 @@ function isBackRankStartSquare(piece, square) {
   return homeSquares[piece.color].has(square);
 }
 
+// A forced mate is worth far more than any pawn count, but letting one raw
+// 10000-cp swing into the average destroys every metric built on it: a single
+// missed mate used to report a whole game as 1/100 with an average loss of 350+.
+const MAX_MOVE_CPL = 1000;
+
 export function calculateCentipawnLoss(before, after) {
-  return Math.max(0, before - after);
+  return Math.min(Math.max(0, before - after), MAX_MOVE_CPL);
 }
 
 export function classifyMove(cpl, evaluationAfter) {
@@ -244,7 +249,12 @@ function capitalize(value) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-export function formatEval(value) {
+export function formatEval(value, mateIn) {
+  if (typeof mateIn === "number") {
+    // Show the mate distance like the review tools do instead of a fake -100.00.
+    const label = mateIn === 0 ? "#" : `M${mateIn}`;
+    return value < 0 ? `-${label}` : label;
+  }
   const pawns = value / 100;
   return pawns >= 0 ? `+${pawns.toFixed(2)}` : pawns.toFixed(2);
 }
@@ -289,12 +299,15 @@ export function phaseDetail(phase, score) {
 }
 
 export function describeMove(move, analysisMode) {
-  const before = formatEval(move.evaluationBefore);
-  const after = formatEval(move.evaluationAfter);
+  const before = formatEval(move.evaluationBefore, move.mateBefore);
+  const after = formatEval(move.evaluationAfter, move.mateAfter);
   const themes = move.themes.length ? ` Themes: ${move.themes.join(", ")}.` : "";
   const referenceLabel = analysisMode === "engine" ? "engine's preferred line" : "the heuristic baseline";
+  const cost = typeof move.mateAfter === "number" && move.evaluationAfter < 0
+    ? "a forced mate"
+    : `about ${Math.round(move.centipawnLoss)} centipawns`;
 
-  return `The position shifted from ${before} to ${after}, costing about ${Math.round(move.centipawnLoss)} centipawns relative to ${referenceLabel}.${themes}`;
+  return `The position shifted from ${before} to ${after}, costing ${cost} relative to ${referenceLabel}.${themes}`;
 }
 
 export function summarizeAnalysis({ headers, playerColor, playerMoves, phaseBuckets, records, analysisMode }) {
@@ -331,6 +344,9 @@ export function summarizeAnalysis({ headers, playerColor, playerMoves, phaseBuck
     avgCpl,
     performanceScore,
     moveCounts,
+    // Every graded position, so the review board can show saved evaluations without
+    // re-running the engine (criticalMoves is only the top-8 swing list).
+    moveRecords: records,
     themeCounts,
     phaseScores,
     bestPhase,
