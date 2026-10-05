@@ -59,6 +59,13 @@ export default function MovesListSection({
         return `badge ${record.label.toLowerCase()}`;
       };
 
+      const handleMoveKeyDown = (event, index) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelectMoveIndex(index);
+        }
+      };
+
       return (
         <div key={pair.num} className="move-row-container" style={{ display: "flex", gap: "8px", margin: "2px 0" }}>
           <div className="move-num" style={{ width: "36px", padding: "8px 0", color: "var(--muted)", fontFamily: "monospace" }}>
@@ -70,6 +77,11 @@ export default function MovesListSection({
             ref={isWhiteSelected ? activeRef : null}
             className={`move-row ${isWhiteSelected ? "selected" : ""}`}
             onClick={() => onSelectMoveIndex(pair.white.index)}
+            onKeyDown={(event) => handleMoveKeyDown(event, pair.white.index)}
+            role="button"
+            tabIndex={0}
+            aria-label={`Move ${pair.num}, White: ${pair.white.san}`}
+            aria-current={isWhiteSelected ? "true" : undefined}
             style={{ flex: 1 }}
           >
             <span className="move-san">{pair.white.san}</span>
@@ -88,6 +100,11 @@ export default function MovesListSection({
               ref={isBlackSelected ? activeRef : null}
               className={`move-row ${isBlackSelected ? "selected" : ""}`}
               onClick={() => onSelectMoveIndex(pair.black.index)}
+              onKeyDown={(event) => handleMoveKeyDown(event, pair.black.index)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Move ${pair.num}, Black: ${pair.black.san}`}
+              aria-current={isBlackSelected ? "true" : undefined}
               style={{ flex: 1 }}
             >
               <span className="move-san">{pair.black.san}</span>

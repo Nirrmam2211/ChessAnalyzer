@@ -16,7 +16,8 @@ export default function GameInputSection({
         <p className="section-kicker">Input</p>
         <h2>Load your game</h2>
         <p className="section-copy">
-          Paste a Chess.com game link or load a raw PGN. URL loading reads public page data. PGN export is the most reliable fallback.
+          Paste a Chess.com game link (plus one player's username) or load a raw PGN. Links are resolved through the public Chess.com API. PGN export always works as a fallback.
+          <strong>Live eval speed</strong> controls the always-on evaluation bar; <strong>Report depth</strong> controls the full "Analyze Game" run.
         </p>
       </div>
 
@@ -38,7 +39,7 @@ export default function GameInputSection({
             type="text"
             value={inputs.playerName}
             onChange={(e) => onChangeInput("playerName", e.target.value)}
-            placeholder="Optional, for auto-color detection"
+            placeholder="Required for URL import (one player's username)"
             disabled={busy}
           />
         </label>
@@ -59,7 +60,22 @@ export default function GameInputSection({
         </label>
 
         <label className="field">
-          <span>Engine depth</span>
+          <span>Live eval speed</span>
+          <select
+            value={inputs.liveDepth}
+            onChange={(e) => onChangeInput("liveDepth", e.target.value)}
+            disabled={busy}
+          >
+            <option value="8">Instant (depth 8)</option>
+            <option value="10">Snappy (depth 10)</option>
+            <option value="12">Balanced (depth 12)</option>
+            <option value="14">Solid (depth 14)</option>
+            <option value="18">Deep (depth 18, slowest)</option>
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Report depth</span>
           <select
             value={inputs.engineDepth}
             onChange={(e) => onChangeInput("engineDepth", e.target.value)}
@@ -68,6 +84,9 @@ export default function GameInputSection({
             <option value="10">Fast (depth 10)</option>
             <option value="12">Balanced (depth 12)</option>
             <option value="14">Deep (depth 14)</option>
+            <option value="16">Deeper (depth 16)</option>
+            <option value="18">Strong (depth 18, slow)</option>
+            <option value="20">Max (depth 20, very slow)</option>
           </select>
         </label>
       </div>

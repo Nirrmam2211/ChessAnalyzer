@@ -13,6 +13,7 @@ export default function ChessboardSection({
   onStepLast,
   isFirstMove,
   isLastMove,
+  movesLength,
   gameMode,
   onChangeGameMode,
   engineOn,
@@ -49,58 +50,80 @@ export default function ChessboardSection({
     };
   }, []);
 
+  // Evaluations arrive in White's point of view, but the bar sits beside a board
+  // that can be flipped. Reading it as "how much the player at the bottom owns the
+  // position" keeps the number, the fill and the board agreeing after a flip.
+  const bottomIsWhite = orientation !== "black";
+  const evalForView = engineEval
+    ? { ...engineEval, value: bottomIsWhite ? engineEval.value : -engineEval.value }
+    : null;
+
   // Helper to format evaluation score for display
   const getEvalDisplay = () => {
-    if (!engineOn) return "Engine Off";
-    if (!engineEval) return "Evaluating...";
-    
-    if (engineEval.type === "mate") {
-      return `M${Math.abs(engineEval.value)}`;
+    if (!evalForView) {
+      return engineOn ? "Evaluating..." : "Engine Off";
     }
     
-    const score = engineEval.value / 100;
+    if (evalForView.type === "mate") {
+      // "now" marks an already-terminal position (UCI mate 0), where the mate
+      // distance is zero: show it as M0 rather than the +/-1 sentinel.
+      return evalForView.now ? "M0" : `M${Math.abs(evalForView.value)}`;
+    }
+    
+    const score = evalForView.value / 100;
     return score >= 0 ? `+${score.toFixed(2)}` : score.toFixed(2);
   };
 
-  // Helper to calculate evaluation bar percentage
-  // 50% is even. White advantage is higher, Black is lower.
+  // Helper to calculate the fill percentage for the evaluation bar.
+  // A linear map made a healthy +1.5 advantage look dead even, so this uses the
+  // same arctan curve the review sites do: it grows fast for small advantages and
+  // saturates for winning ones instead of running off the bar.
+  const fillPercentForScore = (cp) => {
+    const percent = 50 + 50 * (2 / Math.PI) * Math.atan(cp / 350);
+    return Math.max(2, Math.min(98, percent));
+  };
+
   const getEvalPercentage = () => {
-    if (!engineOn || !engineEval) return 50;
+    if (!evalForView) return 50;
     
-    if (engineEval.type === "mate") {
-      return engineEval.value > 0 ? 100 : 0;
+    if (evalForView.type === "mate") {
+      return evalForView.value > 0 ? 98 : 2;
     }
     
-    const cp = engineEval.value;
-    // Map -800 to +800 cp into 5% to 95% range
-    let percentage = 50 + (cp / 16);
-    percentage = Math.max(5, Math.min(95, percentage));
-    return percentage;
+    // The fill is anchored at the bottom of the bar, so it always measures the
+    // bottom side's share of the position.
+    return fillPercentForScore(evalForView.value);
   };
 
   const evalPercent = getEvalPercentage();
   
   return (
     <section className="panel" style={{ minHeight: "100%" }}>
-      <div className="mode-selector">
-        <div
+      <div className="mode-selector" role="group" aria-label="Board mode">
+        <button
+          type="button"
           className={`mode-tab ${gameMode === "analyze" ? "active" : ""}`}
           onClick={() => onChangeGameMode("analyze")}
+          aria-pressed={gameMode === "analyze"}
         >
           Game Review
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           className={`mode-tab ${gameMode === "play" ? "active" : ""}`}
           onClick={() => onChangeGameMode("play")}
+          aria-pressed={gameMode === "play"}
         >
           Play vs Engine
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           className={`mode-tab ${gameMode === "free" ? "active" : ""}`}
           onClick={() => onChangeGameMode("free")}
+          aria-pressed={gameMode === "free"}
         >
           Free Analysis
-        </div>
+        </button>
       </div>
 
       <div className="board-container" ref={containerRef}>
@@ -213,6 +236,15 @@ export default function ChessboardSection({
           <RotateCw size={16} />
         </button>
       </div>
+
+      {gameMode === "analyze" && movesLength > 0 && (
+        <p
+          className="board-hint"
+          style={{ fontSize: "0.72rem", color: "var(--text-muted)", textAlign: "center", margin: "-4px 0 12px" }}
+        >
+          ← / → step moves · Home / End jump · F flips the board
+        </p>
+      )}
 
       {/* Engine HUD */}
       <div className="engine-hud">

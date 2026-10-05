@@ -8,6 +8,13 @@ export default function AnalysisReport({
 }) {
   if (!analysis) return null;
 
+  const handleCriticalMoveKeyDown = (event, index) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelectMoveIndex(index);
+    }
+  };
+
   const {
     performanceScore,
     avgCpl,
@@ -87,7 +94,7 @@ export default function AnalysisReport({
             </div>
             <div className="meta-item">
               <strong>Analysis Mode</strong>
-              <span>{analysis.analysisMode === "engine" ? "Stockfish 16 Engine" : "Heuristic fallback"}</span>
+              <span>{analysis.analysisMode === "engine" ? "Stockfish 19 Engine" : "Heuristic fallback"}</span>
             </div>
           </div>
           <p className="summary-copy">{summary}</p>
@@ -184,6 +191,10 @@ export default function AnalysisReport({
               key={idx} 
               className="move-card"
               onClick={() => onSelectMoveIndex(move.index)}
+              onKeyDown={(event) => handleCriticalMoveKeyDown(event, move.index)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Review move ${move.moveNumber}: ${move.san}, ${move.label}`}
             >
               <div className="move-card-header">
                 <span className="move-card-title">
