@@ -4,11 +4,20 @@
   "trailingSlash": false,
   "headers": [
     {
-      "source": "/(stockfish).*",
+      "source": "/stockfish.js",
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "public, max-age=86400, immutable, stale-while-revalidate=604800"
+          "value": "public, max-age=86400, stale-while-revalidate=2592000"
+        }
+      ]
+    },
+    {
+      "source": "/stockfish.wasm",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=2592000"
         }
       ]
     },

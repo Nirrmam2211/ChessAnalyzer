@@ -29,6 +29,10 @@ The destination names must stay `public/stockfish.js` and `public/stockfish.wasm
 engine derives its wasm URL from the loading script's own filename, so renaming or
 wrapping the script makes the engine boot and then never answer the UCI handshake.
 
+`vite.config.js` runs the same copy as a plugin at build start, so a build that bypasses
+the npm scripts (`vite build`, or a hosting build command typed by hand) still ships a
+working engine instead of a site whose worker 404s.
+
 ## Using the app
 
 1. **Load a game.** Paste a Chess.com game URL *plus* one player's username, or paste a

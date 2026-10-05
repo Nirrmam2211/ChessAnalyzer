@@ -11,15 +11,17 @@
 // renaming them makes the engine boot and then never answer the UCI handshake.
 //
 // Runs are idempotent: an already-copied file of the right size is left alone, so
-// the predev/prebuild hooks cost nothing after the first run.
+// the predev/prebuild hooks and the Vite plugin cost nothing after the first run.
 import { copyFile, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
-const useLite = process.argv.includes("lite");
-const sourceBase = `stockfish-19-${useLite ? "lite-" : ""}single`;
-const binDir = path.join("node_modules", "stockfish", "bin");
-const publicDir = "public";
+// Resolved from this file rather than the current working directory, so the copy
+// lands in the project correctly whether npm, Vite or a bare node run started us.
+const projectRoot = path.join(import.meta.dirname, "..");
+const binDir = path.join(projectRoot, "node_modules", "stockfish", "bin");
+const publicDir = path.join(projectRoot, "public");
 
 async function sizeOf(file) {
   try {
@@ -45,15 +47,26 @@ async function copyIfStale(sourceName, targetName) {
   return `${targetName} copied (${(sourceSize / 1048576).toFixed(2)} MB)`;
 }
 
-async function main() {
+/**
+ * Copies the engine into public/ and returns a line per file describing what happened.
+ * Pass { lite: true } for the small build. Rejects if the stockfish package is absent.
+ */
+export async function setupEngine({ lite = false } = {}) {
   await mkdir(publicDir, { recursive: true });
+  const sourceBase = `stockfish-19-${lite ? "lite-" : ""}single`;
 
+  return [
+    await copyIfStale(`${sourceBase}.js`, "stockfish.js"),
+    await copyIfStale(`${sourceBase}.wasm`, "stockfish.wasm"),
+  ];
+}
+
+// Only behave like a command line tool when this file is executed directly, so that
+// importing it (vite.config.js) gets the function and nothing else.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    const results = [
-      await copyIfStale(`${sourceBase}.js`, "stockfish.js"),
-      await copyIfStale(`${sourceBase}.wasm`, "stockfish.wasm"),
-    ];
-    console.log(`Stockfish ready in public/ (${sourceBase}):\n  ${results.join("\n  ")}`);
+    const results = await setupEngine({ lite: process.argv.includes("lite") });
+    console.log(`Stockfish ready in public/:\n  ${results.join("\n  ")}`);
   } catch (err) {
     console.error(
       `Could not set up the Stockfish engine: ${err.message}\n` +
@@ -62,5 +75,3 @@ async function main() {
     process.exitCode = 1;
   }
 }
-
-main();
