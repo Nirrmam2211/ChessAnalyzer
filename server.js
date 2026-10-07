@@ -25,8 +25,18 @@ function cacheControlFor(ext) {
 }
 
 http.createServer((req, res) => {
-  const requestPath = req.url === "/" ? "/index.html" : req.url.split("?")[0];
-  const filePath = path.join(root, "dist", requestPath);
+  // Strip the query before deciding anything: /?engine=lite is the app, not a
+  // missing file, and the root only maps to index.html once the ?... is gone.
+  const requestPath = decodeURIComponent(req.url.split("?")[0]);
+  const distRoot = path.join(root, "dist");
+  const filePath = path.join(distRoot, requestPath === "/" ? "index.html" : requestPath);
+
+  // Never serve outside dist/, whatever the URL claims.
+  if (!filePath.startsWith(distRoot + path.sep) && filePath !== distRoot) {
+    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Not found");
+    return;
+  }
 
   // stat first so we can send Content-Length and stream instead of buffering.
   fs.stat(filePath, (error, stats) => {
