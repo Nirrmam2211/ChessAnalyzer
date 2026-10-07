@@ -2,6 +2,19 @@ import React, { useState, useEffect, useRef } from "react";
 import { Chessboard } from "react-chessboard";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCw, Cpu } from "lucide-react";
 
+// Which engine actually came up, said in the user's terms. A report graded by the
+// lite build, or by heuristics after both engines failed, is still worth reading - it
+// must just never look identical to a full Stockfish one.
+const ENGINE_NOTICES = {
+  loading:
+    "Starting Stockfish 19. The first visit downloads a 94.5 MB neural network, which can take a minute or two.",
+  "loading-lite":
+    "The full engine is too slow on this connection - starting the 1.7 MB build instead.",
+  lite: "Running the lightweight Stockfish build: real engine analysis, slightly weaker than the full network.",
+  failed:
+    "Stockfish could not load, so this analysis is heuristic and not engine-verified. Check the connection and run it again.",
+};
+
 export default function ChessboardSection({
   fen,
   onMoveMade,
@@ -23,6 +36,8 @@ export default function ChessboardSection({
   engineDepth,
   engineNps,
   engineIsAnalyzing,
+  engineStatus,
+  engineVariant,
   onResetFreePlay,
 }) {
   const containerRef = useRef(null);
@@ -251,7 +266,7 @@ export default function ChessboardSection({
         <div className="engine-header">
           <div className="engine-title">
             <Cpu size={16} className={engineIsAnalyzing ? "text-accent" : "text-muted"} />
-            <span>Stockfish Engine</span>
+            <span>Stockfish Engine{engineVariant === "lite" ? " (lite)" : ""}</span>
           </div>
           <label className="engine-switch">
             <span>{engineOn ? "Active" : "Disabled"}</span>
@@ -264,6 +279,17 @@ export default function ChessboardSection({
             <span className="switch-slider" />
           </label>
         </div>
+
+        {/* Outside the engineOn block on purpose: a report that was graded without a
+            working engine has to stay explained after the toggle is switched off. */}
+        {ENGINE_NOTICES[engineStatus] && (
+          <p
+            className={`engine-notice${engineStatus === "failed" ? " is-error" : ""}`}
+            role="status"
+          >
+            {ENGINE_NOTICES[engineStatus]}
+          </p>
+        )}
 
         {engineOn && (
           <>

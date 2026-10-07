@@ -6,6 +6,9 @@
 //   npm run setup:engine          strongest build  (94.5 MB, full NNUE network)
 //   npm run setup:engine -- lite  small build      (1.7 MB, slightly weaker)
 //
+// Both modes also install the lite pair as stockfish-lite.js/.wasm, the fallback the
+// app boots when the full network cannot be fetched in time.
+//
 // Keep the destination names exactly as they are: the engine's Emscripten glue
 // derives its wasm URL from the loading script's own filename (.js -> .wasm), so
 // renaming them makes the engine boot and then never answer the UCI handshake.
@@ -48,16 +51,24 @@ async function copyIfStale(sourceName, targetName) {
 }
 
 /**
- * Copies the engine into public/ and returns a line per file describing what happened.
- * Pass { lite: true } for the small build. Rejects if the stockfish package is absent.
+ * Copies the engines into public/ and returns a line per file describing what happened.
+ * Pass { lite: true } to make the small build the primary engine. Rejects if the
+ * stockfish package is absent.
+ *
+ * The lite pair is always copied, whatever the primary: the app falls back to
+ * /stockfish-lite.js when the 94.5 MB network cannot download on a slow connection,
+ * which is better than dropping the report to heuristics.
  */
 export async function setupEngine({ lite = false } = {}) {
   await mkdir(publicDir, { recursive: true });
-  const sourceBase = `stockfish-19-${lite ? "lite-" : ""}single`;
+  const primaryBase = `stockfish-19-${lite ? "lite-" : ""}single`;
+  const fallbackBase = "stockfish-19-lite-single";
 
   return [
-    await copyIfStale(`${sourceBase}.js`, "stockfish.js"),
-    await copyIfStale(`${sourceBase}.wasm`, "stockfish.wasm"),
+    await copyIfStale(`${primaryBase}.js`, "stockfish.js"),
+    await copyIfStale(`${primaryBase}.wasm`, "stockfish.wasm"),
+    await copyIfStale(`${fallbackBase}.js`, "stockfish-lite.js"),
+    await copyIfStale(`${fallbackBase}.wasm`, "stockfish-lite.wasm"),
   ];
 }
 

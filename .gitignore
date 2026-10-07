@@ -16,6 +16,8 @@ dist-ssr
 # and are copied here by "npm run setup:engine", so they stay out of git history.
 public/stockfish.js
 public/stockfish.wasm
+public/stockfish-lite.js
+public/stockfish-lite.wasm
 
 # Editor directories and files
 .vscode/*

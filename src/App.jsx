@@ -13,6 +13,7 @@ import {
   calculateCentipawnLoss, 
   classifyMove 
 } from "./utils/chessAnalyzer";
+import { devWarn, devError } from "./utils/log";
 
 const demoPgn = `[Event "Live Chess"]
 [Site "Chess.com"]
@@ -115,6 +116,28 @@ function mateDistancePenalty(beforeEval, afterEval, beforeDist, afterDist) {
 // on them, and promotion suffixes must survive.
 const sanKey = (san) => (san || "").replace(/[+#]/g, "");
 
+// Two engine builds ship in every deployment: the 94.5 MB full NNUE network and the
+// 1.7 MB lite one. They are tried in order, so a connection that cannot fetch the
+// network still gets real engine analysis instead of a silent heuristic report.
+// "?engine=lite" pins the small build from the start (no fallback), "?engine=full"
+// keeps the old all-or-nothing behaviour.
+const ENGINE_BUILDS = {
+  full: { script: "/stockfish.js", label: "full", timeoutMs: 90000 },
+  lite: { script: "/stockfish-lite.js", label: "lite", timeoutMs: 30000 },
+};
+
+function engineBuildOrder() {
+  let forced = null;
+  try {
+    forced = new URLSearchParams(window.location.search).get("engine");
+  } catch {
+    forced = null;
+  }
+  if (forced === "lite") return [ENGINE_BUILDS.lite];
+  if (forced === "full") return [ENGINE_BUILDS.full];
+  return [ENGINE_BUILDS.full, ENGINE_BUILDS.lite];
+}
+
 export default function App() {
   // Input fields
   const [inputs, setInputs] = useState({ ...defaultInputs });
@@ -145,6 +168,11 @@ export default function App() {
   const [engineDepthReached, setEngineDepthReached] = useState(0);
   const [engineNps, setEngineNps] = useState(0);
   const [engineIsAnalyzing, setEngineIsAnalyzing] = useState(false);
+  // Which engine actually came up: idle | loading | loading-lite | ready | lite |
+  // failed. A silent fallback to heuristics made a weaker report look identical to a
+  // real one, so the HUD reads this and says what is running.
+  const [engineStatus, setEngineStatus] = useState("idle");
+  const [engineVariant, setEngineVariant] = useState("full");
 
   // References
   const engineWorkerRef = useRef(null);
@@ -154,6 +182,7 @@ export default function App() {
   const liveDirtyRef = useRef(false);
   const engineInitRef = useRef(null);
   const engineReadyRef = useRef(false);
+  const engineVariantRef = useRef("full");
   const busyRef = useRef(false);
   // True while the engine is thinking its reply in Play mode: the live-eval search
   // must stay off the worker for that window, but it should run again the moment
@@ -174,7 +203,7 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.warn("Could not restore saved input draft.", e);
+      devWarn("Could not restore saved input draft.", e);
     }
   }, []);
 
@@ -185,7 +214,7 @@ export default function App() {
       try {
         localStorage.setItem(inputDraftStorageKey, JSON.stringify(updated));
       } catch (e) {
-        console.warn("Could not save input draft.", e);
+        devWarn("Could not save input draft.", e);
       }
       return updated;
     });
@@ -341,7 +370,7 @@ export default function App() {
       worker.postMessage(`position fen ${currentFen}`);
       worker.postMessage(`go depth ${liveDepth} movetime ${LIVE_MOVE_MS}`);
     } catch {
-      console.warn("Live engine failed to start");
+      devWarn("Live engine failed to start");
       setEngineOn(false);
     }
   }
@@ -375,35 +404,32 @@ export default function App() {
     }
   }
 
-  function getOrCreateEngineWorker() {
-    // Share a single in-flight handshake: a second caller must never be handed a
-    // worker that has not answered "uciok"/"readyok" yet, and must not boot a
-    // duplicate engine (that would be a second ~95MB wasm download).
-    if (engineInitRef.current) return engineInitRef.current;
-    if (engineWorkerRef.current) return Promise.resolve(engineWorkerRef.current);
-
-    const init = new Promise((resolve, reject) => {
+  // Boots one engine build and resolves with its worker once it has answered
+  // "uciok" and "readyok". Only the handshake lives here; which build to try, and
+  // what to do when it fails, is the caller's decision.
+  function bootEngineWorker(build) {
+    return new Promise((resolve, reject) => {
       try {
         // Stockfish 19's glue derives its wasm URL from the loading script's own
-        // pathname (".js" -> ".wasm"), so the worker must BE /stockfish.js.
-        // Wrapping it in a separate worker file makes it request /wrapper.wasm and
-        // the engine then starts up silently without ever answering "uci".
-        const worker = new Worker(`${window.location.origin}/stockfish.js`);
+        // pathname (".js" -> ".wasm"), so the worker must BE /stockfish.js (or
+        // /stockfish-lite.js). Wrapping it in a separate worker file makes it request
+        // /wrapper.wasm and the engine then starts up silently without ever answering
+        // "uci".
+        const worker = new Worker(`${window.location.origin}${build.script}`);
         engineWorkerRef.current = worker;
 
-        // The full NNUE network is ~95MB; allow generous time on first load.
+        // The full NNUE network is ~95MB, so this budget is generous; the lite build
+        // answers in a couple of seconds and gets a short one.
         const timer = setTimeout(() => {
           worker.terminate();
-          engineWorkerRef.current = null;
-          engineInitRef.current = null;
-          reject(new Error("Engine setup timed out loading Stockfish."));
-        }, 120000);
+          if (engineWorkerRef.current === worker) engineWorkerRef.current = null;
+          reject(new Error(`Stockfish ${build.label} build timed out.`));
+        }, build.timeoutMs);
 
         worker.onerror = (event) => {
           clearTimeout(timer);
           worker.terminate();
-          engineWorkerRef.current = null;
-          engineInitRef.current = null;
+          if (engineWorkerRef.current === worker) engineWorkerRef.current = null;
           reject(new Error(event.message || "Engine worker failed to start."));
         };
 
@@ -421,18 +447,56 @@ export default function App() {
             // Messages are processed in order, so this readyok confirms the
             // setoptions above have been applied.
             clearTimeout(timer);
-            engineInitRef.current = null;
-            engineReadyRef.current = true;
             resolve(worker);
           }
         };
 
         worker.postMessage("uci");
       } catch (err) {
-        engineInitRef.current = null;
         reject(err);
       }
     });
+  }
+
+  function getOrCreateEngineWorker() {
+    // Share a single in-flight handshake: a second caller must never be handed a
+    // worker that has not answered "uciok"/"readyok" yet, and must not boot a
+    // duplicate engine (that would be a second ~95MB wasm download).
+    if (engineInitRef.current) return engineInitRef.current;
+    if (engineWorkerRef.current) return Promise.resolve(engineWorkerRef.current);
+
+    const builds = engineBuildOrder();
+    setEngineStatus(builds[0].label === "lite" ? "loading-lite" : "loading");
+
+    // Retrying on the lite build keeps a slow visitor on real engine analysis; the
+    // old behaviour was to give up at the timeout and quietly grade the game with
+    // heuristics, which looked exactly like a normal report.
+    const attempt = (index) =>
+      bootEngineWorker(builds[index])
+        .then((worker) => ({ worker, build: builds[index] }))
+        .catch((err) => {
+          devWarn(`Stockfish ${builds[index].label} build failed to start: ${err.message}`);
+          if (!builds[index + 1]) throw err;
+          setEngineStatus("loading-lite");
+          return attempt(index + 1);
+        });
+
+    const init = attempt(0).then(
+      ({ worker, build }) => {
+        engineInitRef.current = null;
+        engineReadyRef.current = true;
+        engineVariantRef.current = build.label;
+        setEngineVariant(build.label);
+        setEngineStatus(build.label === "lite" ? "lite" : "ready");
+        return worker;
+      },
+      (err) => {
+        engineInitRef.current = null;
+        engineReadyRef.current = false;
+        setEngineStatus("failed");
+        throw err;
+      }
+    );
 
     engineInitRef.current = init;
     return init;
@@ -538,7 +602,7 @@ export default function App() {
         activeAnalysisModeRef.current = "engine";
         worker.postMessage("ucinewgame");
       } catch (err) {
-        console.warn("Stockfish could not start, falling back to heuristic analysis", err);
+        devWarn("Stockfish could not start, falling back to heuristic analysis", err);
         activeAnalysisModeRef.current = "heuristic";
       }
 
@@ -660,7 +724,7 @@ export default function App() {
       setRightPanelTab("moves");
       setStatus("Analysis completed successfully!");
     } catch (error) {
-      console.error(error);
+      devError(error);
       setStatus(error.message || "Something went wrong during game analysis.");
     } finally {
       setBusy(false);
@@ -780,7 +844,7 @@ export default function App() {
     try {
       localStorage.setItem(inputDraftStorageKey, JSON.stringify(demoInputs));
     } catch (e) {
-      console.warn("Could not save input draft.", e);
+      devWarn("Could not save input draft.", e);
     }
     setStatus("Demo game loaded. Click Analyze Game to compile review.");
   };
@@ -1031,7 +1095,7 @@ export default function App() {
       worker.postMessage(`go depth ${depth} movetime ${PLAY_MOVE_MS}`);
     } catch {
       engineThinkingRef.current = false;
-      console.warn("Could not play engine move");
+      devWarn("Could not play engine move");
       setStatus("Engine failed to compute move.");
     }
   };
@@ -1149,6 +1213,8 @@ export default function App() {
           engineDepth={engineDepthReached}
           engineNps={engineNps}
           engineIsAnalyzing={engineIsAnalyzing}
+          engineStatus={engineStatus}
+          engineVariant={engineVariant}
           onResetFreePlay={resetFreePlay}
         />
 

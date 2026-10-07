@@ -25,6 +25,12 @@ npm run setup:engine          # strongest build, 94.5 MB NNUE network
 npm run setup:engine -- lite  # 1.7 MB build, slightly weaker but instant to download
 ```
 
+Both modes also install `stockfish-lite.js` + `stockfish-lite.wasm`. If the full 94.5 MB
+network has not finished downloading within 90 seconds, the app boots the lite build and
+says so above the board instead of silently grading your game with heuristics. Force
+either one with a URL parameter: `?engine=lite` (small build, no retry) or `?engine=full`
+(no fallback).
+
 The destination names must stay `public/stockfish.js` and `public/stockfish.wasm`: the
 engine derives its wasm URL from the loading script's own filename, so renaming or
 wrapping the script makes the engine boot and then never answer the UCI handshake.

@@ -386,6 +386,26 @@ body::before {
   color: var(--accent);
 }
 
+/* Which engine actually came up, or why none did. Quiet while things are healthy,
+   hard to miss when the report is weaker than it looks. */
+.engine-notice {
+  margin: 10px 0 0;
+  padding: 8px 11px;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  background: rgba(191, 90, 54, 0.07);
+  border: 1px solid rgba(191, 90, 54, 0.16);
+}
+
+.engine-notice.is-error {
+  color: #8c2f1c;
+  background: rgba(180, 60, 40, 0.1);
+  border-color: rgba(180, 60, 40, 0.3);
+  font-weight: 500;
+}
+
 /* Forms and fields */
 .grid-two {
   display: grid;
